@@ -6,7 +6,7 @@ Ever told Claude "like we discussed yesterday" only to realize... it has no idea
 
 ### 1. Compaction Erases Details
 
-Long conversations hit context limits. When that happens, Claude Code **compacts**—summarizing earlier messages to make room. That brilliant debugging session from an hour ago? Reduced to "discussed authentication fixes." The specific error codes, the failed approaches, the final solution—gone from context.
+Long conversations hit context limits. When that happens, Claude Code **compacts**, summarizing earlier messages to make room. That brilliant debugging session from an hour ago? Reduced to "discussed authentication fixes." The specific error codes, the failed approaches, the final solution: gone from context.
 
 *But the original messages still exist on disk.* Total Recall finds them.
 
@@ -24,7 +24,7 @@ You always use `uv` for Python projects. You prefer `pnpm` over `npm`. You like 
 
 ---
 
-**Total Recall indexes every Claude Code conversation and provides semantic search**—find discussions by *meaning*, not just keywords. Ask "how did we handle rate limiting?" and it finds the relevant conversation, even if you never used those exact words.
+**Total Recall indexes every Claude Code conversation and provides semantic search.** Find discussions by *meaning*, not just keywords. Ask "how did we handle rate limiting?" and it finds the relevant conversation, even if you never used those exact words.
 
 ## How It Works
 
@@ -117,7 +117,7 @@ When you search:
 2. **Cosine similarity** finds the closest matches (dot product of normalized vectors)
 3. Results above the threshold (default: 0.2) are returned with context
 
-**Semantic matching** means "authentication issue" finds discussions about "login problems" or "JWT token errors"—no exact keyword match needed.
+**Semantic matching** means "authentication issue" finds discussions about "login problems" or "JWT token errors". No exact keyword match needed.
 
 **Context windows** include messages before and after each match, so you see the full conversation flow.
 
@@ -190,14 +190,14 @@ claude --plugin-dir /path/to/claude-total-recall
 
 In Claude Code:
 
-- `/mcp` — should list `claude-total-recall`
-- `/skills` — should list `conversation-recall`
+- `/mcp` should list `claude-total-recall`
+- `/skills` should list `conversation-recall`
 
 ## Usage
 
 ### Natural Language (via Skill)
 
-Just ask—the skill triggers automatically:
+Just ask naturally. The skill triggers automatically:
 
 ```
 "How did we fix that auth bug?"
