@@ -166,6 +166,8 @@ The **agent skill** (`skills/conversation-recall/SKILL.md`) teaches Claude *when
 /plugin install claude-total-recall@claude-total-recall
 ```
 
+**Restart Claude Code** after installation. MCP servers are only loaded at startup.
+
 **Persistent**: The plugin is copied to `~/.claude/plugins/` and loads automatically every session.
 
 ### Option 2: Install from Local Directory
