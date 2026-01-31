@@ -1,0 +1,17 @@
+{
+  "name": "claude-total-recall",
+  "owner": {
+    "name": "Danilo Poccia"
+  },
+  "metadata": {
+    "description": "Search and recall past Claude Code conversations"
+  },
+  "plugins": [
+    {
+      "name": "claude-total-recall",
+      "source": ".",
+      "description": "Semantic search across all past Claude Code conversations",
+      "version": "0.1.0"
+    }
+  ]
+}

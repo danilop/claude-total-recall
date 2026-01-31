@@ -1,0 +1,134 @@
+"""Tests for query engine."""
+
+from datetime import datetime
+
+from claude_total_recall.models import IndexedMessage
+from claude_total_recall.query import _deduplicate_results, _truncate_content
+
+
+class TestTruncateContent:
+    """Tests for content truncation."""
+
+    def test_short_content_unchanged(self):
+        """Test short content is not truncated."""
+        content = "Short text"
+        result = _truncate_content(content, max_length=100)
+        assert result == content
+
+    def test_long_content_truncated(self):
+        """Test long content is truncated with ellipsis."""
+        content = "A" * 100
+        result = _truncate_content(content, max_length=50)
+        assert len(result) == 50
+        assert result.endswith("...")
+
+    def test_exact_length_unchanged(self):
+        """Test content at exact max length is not truncated."""
+        content = "A" * 50
+        result = _truncate_content(content, max_length=50)
+        assert result == content
+        assert "..." not in result
+
+    def test_default_max_length(self):
+        """Test default max length is 2000."""
+        content = "A" * 2001
+        result = _truncate_content(content)
+        assert len(result) == 2000
+
+
+class TestDeduplicateResults:
+    """Tests for result deduplication."""
+
+    def _make_message(self, uuid: str, session_id: str, message_index: int) -> IndexedMessage:
+        """Helper to create a test message."""
+        return IndexedMessage(
+            uuid=uuid,
+            session_id=session_id,
+            project_path="/test",
+            timestamp=datetime(2024, 1, 1, 12, 0, 0),
+            role="assistant",
+            searchable_text=f"Message {uuid}",
+            message_index=message_index,
+        )
+
+    def test_empty_results(self):
+        """Test deduplicating empty results."""
+        result = _deduplicate_results([], context_before_after=3)
+        assert result == []
+
+    def test_single_result(self):
+        """Test deduplicating single result."""
+        msg = self._make_message("m1", "s1", 0)
+        results = [(msg, 0.9)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert len(deduped) == 1
+
+    def test_non_overlapping_results(self):
+        """Test results that don't overlap are kept."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s1", 10)  # Far apart
+        results = [(msg1, 0.9), (msg2, 0.8)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert len(deduped) == 2
+
+    def test_overlapping_results_keep_higher_score(self):
+        """Test overlapping results keep higher score."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s1", 2)  # Close, overlapping context
+        results = [(msg1, 0.7), (msg2, 0.9)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert len(deduped) == 1
+        assert deduped[0][0].uuid == "m2"  # Higher score kept
+
+    def test_different_sessions_not_merged(self):
+        """Test messages from different sessions are not merged."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s2", 0)  # Different session
+        results = [(msg1, 0.9), (msg2, 0.8)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert len(deduped) == 2
+
+    def test_results_sorted_by_score(self):
+        """Test deduplicated results are sorted by score descending."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s2", 0)
+        msg3 = self._make_message("m3", "s3", 0)
+        results = [(msg1, 0.5), (msg2, 0.9), (msg3, 0.7)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert deduped[0][1] == 0.9
+        assert deduped[1][1] == 0.7
+        assert deduped[2][1] == 0.5
+
+    def test_context_window_size_affects_dedup(self):
+        """Test context window size affects deduplication."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s1", 5)
+
+        # With context=3, distance of 5 is NOT overlapping (2*3=6 > 5, so IS overlapping)
+        results = [(msg1, 0.9), (msg2, 0.8)]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        assert len(deduped) == 1  # Merged because 5 <= 6
+
+        # With context=2, distance of 5 is NOT overlapping (2*2=4 < 5)
+        deduped = _deduplicate_results(results, context_before_after=2)
+        assert len(deduped) == 2  # Not merged because 5 > 4
+
+    def test_multiple_overlaps_in_session(self):
+        """Test multiple overlapping messages in same session."""
+        msg1 = self._make_message("m1", "s1", 0)
+        msg2 = self._make_message("m2", "s1", 2)
+        msg3 = self._make_message("m3", "s1", 4)
+        msg4 = self._make_message("m4", "s1", 20)  # Far away
+        results = [
+            (msg1, 0.5),
+            (msg2, 0.9),  # Highest in first group
+            (msg3, 0.6),
+            (msg4, 0.8),
+        ]
+        deduped = _deduplicate_results(results, context_before_after=3)
+        # msg1, msg2, msg3 should be merged (keeping msg2)
+        # msg4 should be separate
+        assert len(deduped) == 2
+        uuids = {d[0].uuid for d in deduped}
+        assert "m2" in uuids
+        assert "m4" in uuids

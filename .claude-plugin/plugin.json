@@ -1,0 +1,5 @@
+{
+  "name": "claude-total-recall",
+  "description": "Search and recall Claude Code conversation history",
+  "version": "0.1.0"
+}

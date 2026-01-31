@@ -1,0 +1,6 @@
+{
+  "claude-total-recall": {
+    "command": "uv",
+    "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "claude-total-recall"]
+  }
+}
