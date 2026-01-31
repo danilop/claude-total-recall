@@ -152,7 +152,7 @@ The **agent skill** (`skills/conversation-recall/SKILL.md`) teaches Claude *when
 
 ### Prerequisites
 
-- Claude Code CLI
+- [Claude Code](https://claude.ai/download)
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
 
