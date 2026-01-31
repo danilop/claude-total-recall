@@ -9,7 +9,6 @@
   "plugins": [
     {
       "name": "claude-total-recall",
-      "source": ".",
       "description": "Semantic search across all past Claude Code conversations",
       "version": "0.1.0"
     }
