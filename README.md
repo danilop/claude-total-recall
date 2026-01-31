@@ -1,10 +1,8 @@
 # Claude Total Recall
 
-**Give Claude Code a persistent memory.**
+Ever told Claude "like we discussed yesterday" only to realize... it has no idea?
 
-## The Problem
-
-Claude Code is powerful, but it forgets.
+**Total Recall** gives Claude Code the memory it's missing.
 
 ### 1. Compaction Erases Details
 
