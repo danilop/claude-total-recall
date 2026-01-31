@@ -9,6 +9,10 @@
   "plugins": [
     {
       "name": "claude-total-recall",
+      "source": {
+        "source": "github",
+        "repo": "danilop/claude-total-recall"
+      },
       "description": "Semantic search across all past Claude Code conversations",
       "version": "0.1.0"
     }
