@@ -1,13 +1,14 @@
 """Pytest fixtures for Claude Total Recall tests."""
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 
 @pytest.fixture
-def temp_claude_dir(tmp_path):
+def temp_claude_dir(tmp_path) -> Path:
     """Create a temporary ~/.claude directory structure."""
     claude_dir = tmp_path / ".claude"
     projects_dir = claude_dir / "projects"
@@ -16,7 +17,7 @@ def temp_claude_dir(tmp_path):
 
 
 @pytest.fixture
-def sample_project(temp_claude_dir):
+def sample_project(temp_claude_dir) -> Path:
     """Create a sample project with sessions."""
     project_name = "-Users-test-myproject"
     project_dir = temp_claude_dir / "projects" / project_name
@@ -125,7 +126,7 @@ def sample_project(temp_claude_dir):
 
 
 @pytest.fixture
-def sample_project_with_subagents(sample_project):
+def sample_project_with_subagents(sample_project) -> Path:
     """Add subagent messages to the sample project."""
     subagents_dir = sample_project / "session-001" / "subagents"
     subagents_dir.mkdir(parents=True)
@@ -158,7 +159,7 @@ def sample_project_with_subagents(sample_project):
 
 
 @pytest.fixture
-def mock_claude_dir(temp_claude_dir, sample_project):
+def mock_claude_dir(temp_claude_dir, sample_project) -> Path:
     """Patch the claude directory to use temp directory."""
     with (
         patch("claude_total_recall.loader.get_claude_dir", return_value=temp_claude_dir),
@@ -171,7 +172,7 @@ def mock_claude_dir(temp_claude_dir, sample_project):
 
 
 @pytest.fixture
-def temp_cache_dir(tmp_path):
+def temp_cache_dir(tmp_path) -> Path:
     """Create a temporary cache directory."""
     cache_dir = tmp_path / ".cache" / "claude-total-recall"
     cache_dir.mkdir(parents=True)

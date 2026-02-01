@@ -1,10 +1,13 @@
 """Load conversations from ~/.claude directory."""
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from .models import IndexedMessage, SessionInfo
+
+logger = logging.getLogger(__name__)
 
 
 def get_claude_dir() -> Path:
@@ -58,7 +61,8 @@ def load_sessions_index(project_path: str) -> list[SessionInfo]:
     try:
         with open(index_file) as f:
             data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        logger.debug(f"Could not load sessions index {index_file}: {e}")
         return []
 
     # Handle both old (list) and new (dict with entries) formats
@@ -89,7 +93,8 @@ def _parse_timestamp(ts: str | int | None) -> datetime | None:
     if isinstance(ts, str):
         try:
             return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        except ValueError:
+        except ValueError as e:
+            logger.debug(f"Could not parse timestamp '{ts}': {e}")
             return None
     return None
 
@@ -164,7 +169,8 @@ def _load_jsonl_messages(
                     continue
                 try:
                     data = json.loads(line)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    logger.debug(f"Skipping malformed JSON in {filepath}: {e}")
                     continue
 
                 # Skip non-message types
@@ -195,8 +201,8 @@ def _load_jsonl_messages(
                         is_subagent=is_subagent,
                     )
                 )
-    except OSError:
-        pass
+    except OSError as e:
+        logger.debug(f"Could not read session file {filepath}: {e}")
 
     return messages
 

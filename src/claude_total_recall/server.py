@@ -1,6 +1,7 @@
 """FastMCP server for Claude Total Recall."""
 
 import os
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -26,7 +27,7 @@ def _get_current_project() -> str | None:
     project = os.environ.get("CLAUDE_PROJECT_DIR")
     if project:
         return project
-    return os.environ.get("PWD") or os.getcwd()
+    return os.environ.get("PWD") or str(Path.cwd())
 
 
 def _search(

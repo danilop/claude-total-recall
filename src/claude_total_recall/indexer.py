@@ -1,36 +1,33 @@
 """Semantic embedding index for conversation search."""
 
 import contextlib
+import functools
 import hashlib
 import logging
 import os
 import pickle
 import platform
 import subprocess
-from pathlib import Path
+from datetime import datetime
 
 import numpy as np
 from filelock import FileLock
 
-from datetime import datetime
-
+from .config import (
+    BYTES_PER_MESSAGE,
+    CACHE_DIR,
+    CACHE_FILE,
+    DEFAULT_MEMORY_FRACTION,
+    EMBEDDING_DIM,
+    EMBEDDING_MODEL,
+    LOCK_FILE,
+    MEMORY_LIMIT_DISABLED_ENV,
+    MEMORY_LIMIT_ENV,
+)
 from .loader import get_projects_dir, list_all_sessions, load_messages_for_sessions
 from .models import IndexedMessage, SessionInfo
 
 logger = logging.getLogger(__name__)
-
-# Configuration
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
-CACHE_DIR = Path.home() / ".cache" / "claude-total-recall"
-CACHE_FILE = CACHE_DIR / "embeddings.pkl"
-LOCK_FILE = CACHE_DIR / "embeddings.lock"
-
-# Memory limit configuration
-MEMORY_LIMIT_ENV = "TOTAL_RECALL_MEMORY_LIMIT_MB"
-MEMORY_LIMIT_DISABLED_ENV = "TOTAL_RECALL_NO_MEMORY_LIMIT"
-DEFAULT_MEMORY_FRACTION = 1 / 3
-BYTES_PER_MESSAGE = 2600  # ~1KB message + 1.5KB embedding + overhead
 
 
 def get_physical_memory() -> int:
@@ -441,13 +438,7 @@ class ConversationIndex:
         return self._excluded_session_count
 
 
-# Global index instance
-_index: ConversationIndex | None = None
-
-
+@functools.lru_cache(maxsize=1)
 def get_index() -> ConversationIndex:
-    """Get or create the global conversation index."""
-    global _index
-    if _index is None:
-        _index = ConversationIndex()
-    return _index
+    """Get or create the global conversation index (singleton via lru_cache)."""
+    return ConversationIndex()

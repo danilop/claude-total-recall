@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from claude_total_recall.config import BYTES_PER_MESSAGE
 from claude_total_recall.indexer import (
-    BYTES_PER_MESSAGE,
     ConversationIndex,
     _get_sessions_fingerprint,
     get_index,
@@ -257,10 +257,8 @@ class TestGetIndex:
 
     def test_get_index_returns_same_instance(self):
         """Test get_index returns the same instance."""
-        # Reset global
-        import claude_total_recall.indexer as indexer_module
-
-        indexer_module._index = None
+        # Clear lru_cache
+        get_index.cache_clear()
 
         index1 = get_index()
         index2 = get_index()
@@ -268,9 +266,7 @@ class TestGetIndex:
 
     def test_get_index_creates_conversation_index(self):
         """Test get_index creates a ConversationIndex."""
-        import claude_total_recall.indexer as indexer_module
-
-        indexer_module._index = None
+        get_index.cache_clear()
 
         index = get_index()
         assert isinstance(index, ConversationIndex)
@@ -555,11 +551,14 @@ class TestSearchWithDateFiltering:
             ),
         ]
         # Create fake embeddings (3 dimensions for testing)
-        index._embeddings = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ], dtype=np.float32)
+        index._embeddings = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
         index._build_metadata_indices()
         index._sessions_fingerprint = "test"
         return index
@@ -680,10 +679,9 @@ class TestSearchWithDateFiltering:
                 message_index=0,
             )
         )
-        index._embeddings = np.vstack([
-            index._embeddings,
-            np.array([[0.5, 0.5, 0.0]], dtype=np.float32)
-        ])
+        index._embeddings = np.vstack(
+            [index._embeddings, np.array([[0.5, 0.5, 0.0]], dtype=np.float32)]
+        )
         index._build_metadata_indices()
 
         mock_model = MagicMock()

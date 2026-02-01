@@ -1,7 +1,14 @@
 """Query engine for conversation search."""
 
+from collections import defaultdict
 from datetime import datetime
 
+from .config import (
+    DEFAULT_CONTEXT_BEFORE_AFTER,
+    DEFAULT_MAX_RESULTS,
+    DEFAULT_OFFSET,
+    DEFAULT_THRESHOLD,
+)
 from .indexer import get_index
 from .models import (
     ContextMessage,
@@ -10,12 +17,6 @@ from .models import (
     SearchResponse,
     SearchResult,
 )
-
-# Configuration defaults
-DEFAULT_CONTEXT_BEFORE_AFTER = 3
-DEFAULT_THRESHOLD = 0.2
-DEFAULT_MAX_RESULTS = 10
-DEFAULT_OFFSET = 0
 
 
 def parse_date_filter(value: str | None) -> datetime | None:
@@ -42,8 +43,7 @@ def parse_date_filter(value: str | None) -> datetime | None:
         return dt.replace(tzinfo=None) if dt.tzinfo else dt
     except ValueError as e:
         raise ValueError(
-            f"Invalid date format: {value}. "
-            "Use ISO 8601 (e.g., 2025-01-15 or 2025-01-15T10:30:00Z)"
+            f"Invalid date format: {value}. Use ISO 8601 (e.g., 2025-01-15 or 2025-01-15T10:30:00Z)"
         ) from e
 
 
@@ -162,10 +162,8 @@ def _deduplicate_results(
         return []
 
     # Group by session
-    by_session: dict[str, list[tuple[IndexedMessage, float]]] = {}
+    by_session: dict[str, list[tuple[IndexedMessage, float]]] = defaultdict(list)
     for msg, score in results:
-        if msg.session_id not in by_session:
-            by_session[msg.session_id] = []
         by_session[msg.session_id].append((msg, score))
 
     # Deduplicate within each session
