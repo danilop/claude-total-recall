@@ -26,6 +26,25 @@ You always use `uv` for Python projects. You prefer `pnpm` over `npm`. You like 
 
 **Total Recall indexes every Claude Code conversation and provides semantic search.** Find discussions by *meaning*, not just keywords. Ask "how did we handle rate limiting?" and it finds the relevant conversation, even if you never used those exact words.
 
+## Quickstart
+
+```bash
+# 1. Add the marketplace source (one-time)
+/plugin marketplace add danilop/claude-total-recall
+
+# 2. Install the plugin
+/plugin install claude-total-recall@claude-total-recall
+
+# 3. Restart Claude Code, then verify
+/mcp    # Should list claude-total-recall
+```
+
+Then just ask naturally: *"How did we fix that bug last week?"*
+
+See [Installation](#installation) for prerequisites and alternatives.
+
+---
+
 ## How It Works
 
 ```
