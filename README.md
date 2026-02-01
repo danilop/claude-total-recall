@@ -188,6 +188,22 @@ claude --plugin-dir /path/to/claude-total-recall
 
 **Not persistent**: You must pass `--plugin-dir` every time.
 
+### Updating
+
+To update to the latest version:
+
+```bash
+# If installed from GitHub marketplace
+/plugin install claude-total-recall@claude-total-recall
+
+# If installed from local directory
+cd /path/to/claude-total-recall
+git pull
+uv sync
+```
+
+**Restart Claude Code** after updating.
+
 ### Verify Installation
 
 In Claude Code:
