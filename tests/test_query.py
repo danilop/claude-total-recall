@@ -5,7 +5,12 @@ from datetime import datetime
 import pytest
 
 from claude_total_recall.models import IndexedMessage
-from claude_total_recall.query import _deduplicate_results, _truncate_content, parse_date_filter
+from claude_total_recall.query import (
+    _deduplicate_results,
+    _generate_hint,
+    _truncate_content,
+    parse_date_filter,
+)
 
 
 class TestParseDateFilter:
@@ -182,3 +187,81 @@ class TestDeduplicateResults:
         uuids = {d[0].uuid for d in deduped}
         assert "m2" in uuids
         assert "m4" in uuids
+
+
+class TestGenerateHint:
+    """Tests for pagination hint generation."""
+
+    def test_no_matches(self):
+        """Test hint when no matches found."""
+        hint = _generate_hint(
+            total_matches=0,
+            offset=0,
+            results_count=0,
+            max_results=10,
+            has_more=False,
+        )
+        assert "No matches found" in hint
+        assert "different search terms" in hint
+
+    def test_has_more_results(self):
+        """Test hint when more results available."""
+        hint = _generate_hint(
+            total_matches=25,
+            offset=0,
+            results_count=10,
+            max_results=10,
+            has_more=True,
+        )
+        assert "Showing 1-10 of 25" in hint
+        assert "offset: 10" in hint
+        assert "different search terms" in hint
+
+    def test_has_more_with_offset(self):
+        """Test hint when paginating through results."""
+        hint = _generate_hint(
+            total_matches=25,
+            offset=10,
+            results_count=10,
+            max_results=10,
+            has_more=True,
+        )
+        assert "Showing 11-20 of 25" in hint
+        assert "offset: 20" in hint
+
+    def test_final_page(self):
+        """Test hint on final page of results."""
+        hint = _generate_hint(
+            total_matches=25,
+            offset=20,
+            results_count=5,
+            max_results=10,
+            has_more=False,
+        )
+        assert "Showing 21-25 of 25" in hint
+        assert "final page" in hint
+        assert "offset" not in hint.lower() or "offset:" not in hint
+
+    def test_all_results_on_first_page(self):
+        """Test hint when all results fit on first page."""
+        hint = _generate_hint(
+            total_matches=5,
+            offset=0,
+            results_count=5,
+            max_results=10,
+            has_more=False,
+        )
+        assert "Showing all 5 matches" in hint
+        assert "different search terms" in hint
+
+    def test_single_match(self):
+        """Test hint when only one match found."""
+        hint = _generate_hint(
+            total_matches=1,
+            offset=0,
+            results_count=1,
+            max_results=10,
+            has_more=False,
+        )
+        assert "only match" in hint
+        assert "different search terms" in hint

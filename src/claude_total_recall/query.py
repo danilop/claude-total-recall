@@ -99,6 +99,13 @@ def search_conversations(
             query=query,
             total_matches=0,
             excluded_sessions=index.excluded_session_count,
+            hint=_generate_hint(
+                total_matches=0,
+                offset=offset,
+                results_count=0,
+                max_results=max_results,
+                has_more=False,
+            ),
         )
 
     # Group by session and deduplicate overlapping windows
@@ -139,13 +146,22 @@ def search_conversations(
             )
         )
 
+    has_more = offset + len(results) < total_after_dedup
+
     return SearchResponse(
         results=results,
         query=query,
         total_matches=total_after_dedup,
         offset=offset,
-        has_more=offset + len(results) < total_after_dedup,
+        has_more=has_more,
         excluded_sessions=index.excluded_session_count,
+        hint=_generate_hint(
+            total_matches=total_after_dedup,
+            offset=offset,
+            results_count=len(results),
+            max_results=max_results,
+            has_more=has_more,
+        ),
     )
 
 
@@ -204,3 +220,40 @@ def _truncate_content(content: str, max_length: int = 2000) -> str:
     if len(content) <= max_length:
         return content
     return content[: max_length - 3] + "..."
+
+
+def _generate_hint(
+    total_matches: int,
+    offset: int,
+    results_count: int,
+    max_results: int,
+    has_more: bool,
+) -> str:
+    """Generate a helpful hint about pagination and search options."""
+    if total_matches == 0:
+        return "No matches found. Try different search terms or broaden your query."
+
+    # Calculate the range being shown (1-indexed for human readability)
+    start = offset + 1
+    end = offset + results_count
+
+    if has_more:
+        next_offset = offset + max_results
+        return (
+            f"Showing {start}-{end} of {total_matches} matches. "
+            f"To retrieve more, use offset: {next_offset}. "
+            f"Or try different search terms."
+        )
+    else:
+        if total_matches == 1:
+            return "Showing the only match. Try different search terms to find more."
+        elif start == 1:
+            return (
+                f"Showing all {total_matches} matches. "
+                f"Try different search terms to find more."
+            )
+        else:
+            return (
+                f"Showing {start}-{end} of {total_matches} matches (final page). "
+                f"Try different search terms to find more."
+            )

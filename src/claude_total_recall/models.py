@@ -71,3 +71,4 @@ class SearchResponse(BaseModel):
     offset: int = 0
     has_more: bool = False
     excluded_sessions: int = 0
+    hint: str | None = None

@@ -323,9 +323,15 @@ search_project_history(query="database", after="2025-01-01", before="2025-02-01"
   "total_matches": 25,
   "offset": 0,
   "has_more": true,
-  "excluded_sessions": 0
+  "excluded_sessions": 0,
+  "hint": "Showing 1-10 of 25 matches. To retrieve more, use offset: 10. Or try different search terms."
 }
 ```
+
+The `hint` field provides guidance on next steps:
+- When more results are available, it shows the `offset` value to use for the next page
+- When no results are found, it suggests trying different search terms
+- Always includes the range being displayed (e.g., "Showing 1-10 of 25")
 
 ### Pagination
 
