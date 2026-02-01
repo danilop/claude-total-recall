@@ -258,11 +258,26 @@ Claude: [searches for "auth approach implementation" to recover details]
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `query` | required | Keywords or sentence to search |
+| `after` | none | Filter to messages on/after this date (inclusive). ISO 8601 format. |
+| `before` | none | Filter to messages before this date (exclusive). ISO 8601 format. |
 | `context_before_after` | 3 | Messages before AND after each match |
 | `threshold` | 0.2 | Minimum similarity (0-1, higher = stricter) |
 | `max_results` | 10 | Maximum results to return |
 | `offset` | 0 | Skip results (for pagination) |
 | `include_subagents` | true | Include agent/subagent conversations |
+
+### Date Filtering Examples
+
+```python
+# Messages from a specific day
+search_project_history(query="auth bug", after="2025-01-15", before="2025-01-16")
+
+# Messages from the past week
+search_project_history(query="refactoring", after="2025-01-25")
+
+# Messages in January
+search_project_history(query="database", after="2025-01-01", before="2025-02-01")
+```
 
 ### Response Structure
 

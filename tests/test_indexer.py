@@ -460,3 +460,247 @@ class TestConversationIndexMemoryManagement:
         index = ConversationIndex()
         index._excluded_session_count = 5
         assert index.excluded_session_count == 5
+
+
+class TestBuildMetadataIndices:
+    """Tests for _build_metadata_indices method."""
+
+    def test_empty_messages(self):
+        """Test building indices with no messages."""
+        index = ConversationIndex()
+        index._messages = []
+        index._build_metadata_indices()
+
+        assert len(index._timestamp_order) == 0
+        assert len(index._sorted_timestamps) == 0
+
+    def test_builds_sorted_indices(self):
+        """Test indices are built and sorted correctly."""
+        index = ConversationIndex()
+        # Create messages with different timestamps (out of order)
+        index._messages = [
+            IndexedMessage(
+                uuid="m1",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 3),  # Third
+                role="user",
+                searchable_text="msg1",
+                message_index=0,
+            ),
+            IndexedMessage(
+                uuid="m2",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 1),  # First
+                role="user",
+                searchable_text="msg2",
+                message_index=1,
+            ),
+            IndexedMessage(
+                uuid="m3",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 2),  # Second
+                role="user",
+                searchable_text="msg3",
+                message_index=2,
+            ),
+        ]
+
+        index._build_metadata_indices()
+
+        # Verify sorted order: indices should point to messages in timestamp order
+        assert list(index._timestamp_order) == [1, 2, 0]  # m2, m3, m1
+
+        # Verify timestamps are sorted
+        assert index._sorted_timestamps[0] < index._sorted_timestamps[1]
+        assert index._sorted_timestamps[1] < index._sorted_timestamps[2]
+
+
+class TestSearchWithDateFiltering:
+    """Tests for search with date filtering."""
+
+    @pytest.fixture
+    def index_with_messages(self):
+        """Create an index with test messages at different timestamps."""
+        index = ConversationIndex()
+        index._messages = [
+            IndexedMessage(
+                uuid="m1",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 10),
+                role="user",
+                searchable_text="test message one",
+                message_index=0,
+            ),
+            IndexedMessage(
+                uuid="m2",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 15),
+                role="user",
+                searchable_text="test message two",
+                message_index=1,
+            ),
+            IndexedMessage(
+                uuid="m3",
+                session_id="s1",
+                project_path="/test",
+                timestamp=datetime(2024, 1, 20),
+                role="user",
+                searchable_text="test message three",
+                message_index=2,
+            ),
+        ]
+        # Create fake embeddings (3 dimensions for testing)
+        index._embeddings = np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ], dtype=np.float32)
+        index._build_metadata_indices()
+        index._sessions_fingerprint = "test"
+        return index
+
+    def test_search_with_after_filter(self, index_with_messages):
+        """Messages before 'after' date are excluded."""
+        index = index_with_messages
+
+        # Mock the model.encode to return a query embedding matching our 3D embeddings
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        # Mock needs_rebuild to prevent ensure_index from rebuilding
+        with patch.object(index, "needs_rebuild", return_value=False):
+            # Search with after=2024-01-12, should exclude m1
+            results = index.search(
+                query="test",
+                threshold=0.0,
+                after=datetime(2024, 1, 12),
+            )
+
+        uuids = [msg.uuid for msg, _ in results]
+        assert "m1" not in uuids
+        assert "m2" in uuids
+        assert "m3" in uuids
+
+    def test_search_with_before_filter(self, index_with_messages):
+        """Messages on/after 'before' date are excluded."""
+        index = index_with_messages
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        with patch.object(index, "needs_rebuild", return_value=False):
+            # Search with before=2024-01-18, should exclude m3
+            results = index.search(
+                query="test",
+                threshold=0.0,
+                before=datetime(2024, 1, 18),
+            )
+
+        uuids = [msg.uuid for msg, _ in results]
+        assert "m1" in uuids
+        assert "m2" in uuids
+        assert "m3" not in uuids
+
+    def test_search_with_date_range(self, index_with_messages):
+        """Only messages within range are returned."""
+        index = index_with_messages
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        with patch.object(index, "needs_rebuild", return_value=False):
+            # Search with after=2024-01-12 and before=2024-01-18
+            results = index.search(
+                query="test",
+                threshold=0.0,
+                after=datetime(2024, 1, 12),
+                before=datetime(2024, 1, 18),
+            )
+
+        uuids = [msg.uuid for msg, _ in results]
+        assert "m1" not in uuids
+        assert "m2" in uuids  # Only m2 is in range
+        assert "m3" not in uuids
+
+    def test_search_date_filter_empty_result(self, index_with_messages):
+        """No results when date range has no messages."""
+        index = index_with_messages
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        with patch.object(index, "needs_rebuild", return_value=False):
+            # Search with a range that has no messages
+            results = index.search(
+                query="test",
+                threshold=0.0,
+                after=datetime(2024, 2, 1),
+                before=datetime(2024, 2, 10),
+            )
+
+        assert len(results) == 0
+
+    def test_search_no_date_filter(self, index_with_messages):
+        """All messages returned when no date filter specified."""
+        index = index_with_messages
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        with patch.object(index, "needs_rebuild", return_value=False):
+            results = index.search(
+                query="test",
+                threshold=0.0,
+            )
+
+        assert len(results) == 3
+
+    def test_search_date_filter_with_project(self, index_with_messages):
+        """Date and project filters combine correctly."""
+        index = index_with_messages
+        # Add a message from a different project
+        index._messages.append(
+            IndexedMessage(
+                uuid="m4",
+                session_id="s2",
+                project_path="/other",
+                timestamp=datetime(2024, 1, 15),
+                role="user",
+                searchable_text="other project message",
+                message_index=0,
+            )
+        )
+        index._embeddings = np.vstack([
+            index._embeddings,
+            np.array([[0.5, 0.5, 0.0]], dtype=np.float32)
+        ])
+        index._build_metadata_indices()
+
+        mock_model = MagicMock()
+        mock_model.encode.return_value = np.array([0.5, 0.5, 0.5], dtype=np.float32)
+        index._model = mock_model
+
+        with patch.object(index, "needs_rebuild", return_value=False):
+            # Search with date filter and project filter
+            results = index.search(
+                query="test",
+                project="/test",
+                threshold=0.0,
+                after=datetime(2024, 1, 12),
+            )
+
+        uuids = [msg.uuid for msg, _ in results]
+        assert "m4" not in uuids  # Filtered by project
+        assert "m1" not in uuids  # Filtered by date
+        assert "m2" in uuids
+        assert "m3" in uuids

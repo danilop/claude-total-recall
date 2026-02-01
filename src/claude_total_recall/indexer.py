@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 from filelock import FileLock
 
+from datetime import datetime
+
 from .loader import get_projects_dir, list_all_sessions, load_messages_for_sessions
 from .models import IndexedMessage, SessionInfo
 
@@ -157,6 +159,9 @@ class ConversationIndex:
         self._text_hashes: list[str] = []
         self._sessions_fingerprint: str = ""
         self._excluded_session_count: int = 0
+        # Sorted indices for efficient date filtering
+        self._timestamp_order: np.ndarray | None = None  # indices sorted by timestamp
+        self._sorted_timestamps: np.ndarray | None = None  # timestamps in sorted order
 
     @property
     def model(self):
@@ -215,6 +220,20 @@ class ConversationIndex:
         except OSError:
             # Lock acquisition failed - skip caching (graceful degradation)
             pass
+
+    def _build_metadata_indices(self):
+        """Build sorted indices for efficient metadata filtering."""
+        if not self._messages:
+            self._timestamp_order = np.array([], dtype=np.int64)
+            self._sorted_timestamps = np.array([], dtype=np.float64)
+            return
+
+        # Extract timestamps as unix floats for efficient numpy operations
+        timestamps = np.array([m.timestamp.timestamp() for m in self._messages])
+
+        # Create sorted index
+        self._timestamp_order = np.argsort(timestamps)
+        self._sorted_timestamps = timestamps[self._timestamp_order]
 
     def needs_rebuild(self) -> bool:
         """Check if the index needs to be rebuilt due to new conversations."""
@@ -290,6 +309,9 @@ class ConversationIndex:
         if new_cache_entries:
             self._save_cache(new_cache_entries)
 
+        # Build metadata indices for efficient filtering
+        self._build_metadata_indices()
+
     def ensure_index(self, include_subagents: bool = True):
         """Ensure the index is built and up-to-date."""
         if self._embeddings is None or self.needs_rebuild():
@@ -302,13 +324,44 @@ class ConversationIndex:
         threshold: float = 0.3,
         max_results: int = 100,
         include_subagents: bool = True,
+        after: datetime | None = None,
+        before: datetime | None = None,
     ) -> list[tuple[IndexedMessage, float]]:
-        """Search for messages matching the query."""
+        """Search for messages matching the query with optional date filtering.
+
+        Args:
+            query: Search string (keywords or sentence)
+            project: Optional project path filter
+            threshold: Minimum cosine similarity (0-1)
+            max_results: Maximum number of results to return
+            include_subagents: Include subagent conversations
+            after: Filter to messages on or after this datetime (inclusive)
+            before: Filter to messages before this datetime (exclusive)
+
+        Returns:
+            List of (message, score) tuples sorted by score descending
+        """
         self.ensure_index(include_subagents)
 
         if self._embeddings is None or len(self._embeddings) == 0:
             return []
 
+        # Step 1: Pre-filter by date using binary search (O(log n))
+        if after is not None or before is not None:
+            after_ts = after.timestamp() if after else float("-inf")
+            before_ts = before.timestamp() if before else float("inf")
+
+            start_idx = np.searchsorted(self._sorted_timestamps, after_ts, side="left")
+            end_idx = np.searchsorted(self._sorted_timestamps, before_ts, side="left")
+
+            candidate_indices = self._timestamp_order[start_idx:end_idx]
+        else:
+            candidate_indices = np.arange(len(self._messages))
+
+        if len(candidate_indices) == 0:
+            return []
+
+        # Step 2: Compute similarities only for candidates
         query_embedding = self.model.encode(
             query,
             show_progress_bar=False,
@@ -316,17 +369,22 @@ class ConversationIndex:
             normalize_embeddings=True,
         )
 
-        similarities = np.dot(self._embeddings, query_embedding)
-        sorted_indices = np.argsort(similarities)[::-1]
+        candidate_embeddings = self._embeddings[candidate_indices]
+        similarities = np.dot(candidate_embeddings, query_embedding)
+
+        # Step 3: Sort by similarity and apply remaining filters
+        sorted_local_indices = np.argsort(similarities)[::-1]
 
         results = []
-        for idx in sorted_indices:
-            score = float(similarities[idx])
+        for local_idx in sorted_local_indices:
+            score = float(similarities[local_idx])
             if score < threshold:
                 break
 
-            msg = self._messages[idx]
+            global_idx = candidate_indices[local_idx]
+            msg = self._messages[global_idx]
 
+            # Apply remaining filters (project, subagents)
             if project and not msg.project_path.startswith(project):
                 continue
             if not include_subagents and msg.is_subagent:

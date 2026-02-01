@@ -2,8 +2,58 @@
 
 from datetime import datetime
 
+import pytest
+
 from claude_total_recall.models import IndexedMessage
-from claude_total_recall.query import _deduplicate_results, _truncate_content
+from claude_total_recall.query import _deduplicate_results, _truncate_content, parse_date_filter
+
+
+class TestParseDateFilter:
+    """Tests for parse_date_filter function."""
+
+    def test_parse_date_only(self):
+        """'2025-01-15' parses correctly."""
+        result = parse_date_filter("2025-01-15")
+        assert result == datetime(2025, 1, 15)
+
+    def test_parse_datetime(self):
+        """'2025-01-15T10:30:00' parses correctly."""
+        result = parse_date_filter("2025-01-15T10:30:00")
+        assert result == datetime(2025, 1, 15, 10, 30, 0)
+
+    def test_parse_datetime_with_z_suffix(self):
+        """'2025-01-15T10:30:00Z' parses correctly and strips timezone."""
+        result = parse_date_filter("2025-01-15T10:30:00Z")
+        assert result == datetime(2025, 1, 15, 10, 30, 0)
+        assert result.tzinfo is None
+
+    def test_parse_datetime_with_timezone(self):
+        """Datetime with timezone parses and strips timezone."""
+        result = parse_date_filter("2025-01-15T10:30:00+05:00")
+        assert result == datetime(2025, 1, 15, 10, 30, 0)
+        assert result.tzinfo is None
+
+    def test_parse_none(self):
+        """None returns None."""
+        result = parse_date_filter(None)
+        assert result is None
+
+    def test_parse_invalid_format(self):
+        """Invalid format raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            parse_date_filter("not-a-date")
+        assert "Invalid date format" in str(exc_info.value)
+        assert "ISO 8601" in str(exc_info.value)
+
+    def test_parse_partial_date_invalid(self):
+        """Partial date without full format raises ValueError."""
+        with pytest.raises(ValueError):
+            parse_date_filter("2025-01")
+
+    def test_parse_with_microseconds(self):
+        """Datetime with microseconds parses correctly."""
+        result = parse_date_filter("2025-01-15T10:30:00.123456")
+        assert result == datetime(2025, 1, 15, 10, 30, 0, 123456)
 
 
 class TestTruncateContent:

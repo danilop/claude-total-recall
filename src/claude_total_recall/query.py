@@ -1,5 +1,7 @@
 """Query engine for conversation search."""
 
+from datetime import datetime
+
 from .indexer import get_index
 from .models import (
     ContextMessage,
@@ -16,9 +18,40 @@ DEFAULT_MAX_RESULTS = 10
 DEFAULT_OFFSET = 0
 
 
+def parse_date_filter(value: str | None) -> datetime | None:
+    """Parse ISO 8601 date string to datetime.
+
+    Accepts: "2025-01-15" or "2025-01-15T10:30:00" or "2025-01-15T10:30:00Z"
+    Returns naive datetime (timezone stripped to match stored timestamps).
+
+    Args:
+        value: ISO 8601 date string or None
+
+    Returns:
+        Parsed datetime (naive) or None if value is None
+
+    Raises:
+        ValueError: If the date format is invalid
+    """
+    if value is None:
+        return None
+    try:
+        # Handle Z suffix for UTC
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # Strip timezone - stored timestamps are naive local time
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid date format: {value}. "
+            "Use ISO 8601 (e.g., 2025-01-15 or 2025-01-15T10:30:00Z)"
+        ) from e
+
+
 def search_conversations(
     query: str,
     project: str | None = None,
+    after: str | None = None,
+    before: str | None = None,
     context_before_after: int = DEFAULT_CONTEXT_BEFORE_AFTER,
     threshold: float = DEFAULT_THRESHOLD,
     max_results: int = DEFAULT_MAX_RESULTS,
@@ -31,6 +64,8 @@ def search_conversations(
     Args:
         query: Search string (keywords or sentence)
         project: Optional project path filter
+        after: Filter to messages on/after this date (inclusive). ISO 8601 format.
+        before: Filter to messages before this date (exclusive). ISO 8601 format.
         context_before_after: Number of messages to include before AND after each match
         threshold: Minimum cosine similarity (0-1)
         max_results: Maximum number of results to return
@@ -42,6 +77,10 @@ def search_conversations(
     """
     index = get_index()
 
+    # Parse date filters
+    after_dt = parse_date_filter(after)
+    before_dt = parse_date_filter(before)
+
     # Search for matches (index auto-rebuilds if needed)
     # Get extra results to account for deduplication and pagination
     raw_results = index.search(
@@ -50,6 +89,8 @@ def search_conversations(
         threshold=threshold,
         max_results=(offset + max_results) * 3,
         include_subagents=include_subagents,
+        after=after_dt,
+        before=before_dt,
     )
 
     if not raw_results:

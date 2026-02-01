@@ -66,11 +66,77 @@ User: "How do I usually structure React components?"
 Both tools accept:
 
 - `query` (required): Keywords or sentence to search
+- `after` (optional): Filter to messages on/after this date (inclusive). ISO 8601 format.
+- `before` (optional): Filter to messages before this date (exclusive). ISO 8601 format.
 - `context_before_after` (default: 3): Messages before/after each match
 - `threshold` (default: 0.2): Minimum similarity (0-1)
 - `max_results` (default: 10): Results to return
 - `offset` (default: 0): Skip results for pagination
 - `include_subagents` (default: true): Include agent conversations
+
+## Date Filtering
+
+### Converting Relative Time to Specific Dates
+
+You know today's date from system context. Always convert relative time references to specific ISO 8601 dates:
+
+| User says | Calculate (if today is 2025-02-01) |
+|-----------|-------------------------------------|
+| "yesterday" | `after="2025-01-31", before="2025-02-01"` |
+| "last week" | `after="2025-01-25", before="2025-02-01"` |
+| "in January" | `after="2025-01-01", before="2025-02-01"` |
+| "last month" | `after="2025-01-01", before="2025-02-01"` |
+| "recently" | `after="2025-01-25"` (past ~7 days) |
+| "a while ago" | `after="2025-01-01"` (past ~30 days) |
+
+### Date Parameter Semantics
+
+- `after`: inclusive (>=) - messages ON or AFTER this date
+- `before`: exclusive (<) - messages BEFORE this date
+- Format: ISO 8601 - `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS` or `YYYY-MM-DDTHH:MM:SSZ`
+
+### Examples
+
+**Single day:**
+```
+User: "What did we discuss about auth yesterday?"
+Today is 2025-02-01
+
+-> search_project_history(
+    query="auth authentication login",
+    after="2025-01-31",
+    before="2025-02-01"
+  )
+```
+
+**Date range:**
+```
+User: "Find database discussions from last week"
+Today is 2025-02-01
+
+-> search_project_history(
+    query="database schema migration",
+    after="2025-01-25",
+    before="2025-02-01"
+  )
+```
+
+**Open-ended (recent):**
+```
+User: "What have we been working on lately?"
+Today is 2025-02-01
+
+-> search_project_history(
+    query="implementation work progress",
+    after="2025-01-25"
+  )
+```
+
+### Tips
+
+- Combine semantic query with date filters for best results
+- When date is ambiguous, use broader range and refine based on result timestamps
+- Results include timestamps - you can interpret and summarize temporal patterns
 
 ## Tips
 

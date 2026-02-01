@@ -32,6 +32,8 @@ def _get_current_project() -> str | None:
 def _search(
     query: str,
     project: str | None,
+    after: str | None,
+    before: str | None,
     context_before_after: int,
     threshold: float,
     max_results: int,
@@ -42,6 +44,8 @@ def _search(
     result = search_conversations(
         query=query,
         project=project,
+        after=after,
+        before=before,
         context_before_after=context_before_after,
         threshold=threshold,
         max_results=max_results,
@@ -54,6 +58,8 @@ def _search(
 @mcp.tool()
 def search_project_history(
     query: str,
+    after: str | None = None,
+    before: str | None = None,
     context_before_after: int = DEFAULT_CONTEXT_BEFORE_AFTER,
     threshold: float = DEFAULT_THRESHOLD,
     max_results: int = DEFAULT_MAX_RESULTS,
@@ -70,6 +76,10 @@ def search_project_history(
 
     Args:
         query: Keywords or sentence describing what to find
+        after: Filter to messages on or after this date/time (inclusive).
+               ISO 8601 format: "2025-01-15" or "2025-01-15T10:30:00Z"
+        before: Filter to messages before this date/time (exclusive).
+               ISO 8601 format: "2025-01-15" or "2025-01-15T10:30:00Z"
         context_before_after: Number of messages to include before AND after each match (default: 3)
         threshold: Minimum similarity score 0-1 (default: 0.2)
         max_results: Maximum number of results to return (default: 10)
@@ -83,6 +93,8 @@ def search_project_history(
     return _search(
         query=query,
         project=_get_current_project(),
+        after=after,
+        before=before,
         context_before_after=context_before_after,
         threshold=threshold,
         max_results=max_results,
@@ -94,6 +106,8 @@ def search_project_history(
 @mcp.tool()
 def search_global_history(
     query: str,
+    after: str | None = None,
+    before: str | None = None,
     context_before_after: int = DEFAULT_CONTEXT_BEFORE_AFTER,
     threshold: float = DEFAULT_THRESHOLD,
     max_results: int = DEFAULT_MAX_RESULTS,
@@ -110,6 +124,10 @@ def search_global_history(
 
     Args:
         query: Keywords or sentence describing what to find
+        after: Filter to messages on or after this date/time (inclusive).
+               ISO 8601 format: "2025-01-15" or "2025-01-15T10:30:00Z"
+        before: Filter to messages before this date/time (exclusive).
+               ISO 8601 format: "2025-01-15" or "2025-01-15T10:30:00Z"
         context_before_after: Number of messages to include before AND after each match (default: 3)
         threshold: Minimum similarity score 0-1 (default: 0.2)
         max_results: Maximum number of results to return (default: 10)
@@ -123,6 +141,8 @@ def search_global_history(
     return _search(
         query=query,
         project=None,
+        after=after,
+        before=before,
         context_before_after=context_before_after,
         threshold=threshold,
         max_results=max_results,
