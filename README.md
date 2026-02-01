@@ -193,20 +193,18 @@ claude --plugin-dir /path/to/claude-total-recall
 To update to the latest version:
 
 ```bash
-# Option 1: Use the CLI (outside Claude Code)
-claude plugin update claude-total-recall@claude-total-recall
+# Update the plugin files and install dependencies
+cd ~/.claude/plugins/marketplaces/claude-total-recall
+git pull
+uv sync
 
-# Option 2: Uninstall and reinstall (inside Claude Code)
-/plugin uninstall claude-total-recall@claude-total-recall
-/plugin install claude-total-recall@claude-total-recall
-
-# Option 3: If installed from local directory
+# If installed from a local directory instead
 cd /path/to/claude-total-recall
 git pull
 uv sync
 ```
 
-**Restart Claude Code** after updating.
+**Restart Claude Code** after updating to reload the MCP server.
 
 ### Verify Installation
 
