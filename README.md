@@ -213,6 +213,17 @@ In Claude Code:
 - `/mcp` should list `claude-total-recall`
 - `/skills` should list `conversation-recall`
 
+### Troubleshooting
+
+If you see "Missing dependencies" errors, run:
+
+```bash
+cd ~/.claude/plugins/marketplaces/claude-total-recall
+uv sync
+```
+
+Then restart Claude Code. (This is automatic on macOS/Linux but may be needed on Windows.)
+
 ## Usage
 
 ### Natural Language (via Skill)

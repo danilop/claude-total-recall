@@ -1,10 +1,39 @@
 """FastMCP server for Claude Total Recall."""
 
-import os
+import sys
 
-from mcp.server.fastmcp import FastMCP
 
-from .query import (
+def _check_dependencies():
+    """Check that required dependencies are installed."""
+    missing = []
+    try:
+        import sentence_transformers  # noqa: F401
+    except ImportError:
+        missing.append("sentence-transformers")
+    try:
+        import numpy  # noqa: F401
+    except ImportError:
+        missing.append("numpy")
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        missing.append("mcp")
+
+    if missing:
+        sys.exit(
+            f"Missing dependencies: {', '.join(missing)}\n"
+            "Run this to install them:\n"
+            "  cd ~/.claude/plugins/marketplaces/claude-total-recall && uv sync"
+        )
+
+
+_check_dependencies()
+
+import os  # noqa: E402
+
+from mcp.server.fastmcp import FastMCP  # noqa: E402
+
+from .query import (  # noqa: E402
     DEFAULT_CONTEXT_BEFORE_AFTER,
     DEFAULT_MAX_RESULTS,
     DEFAULT_OFFSET,
