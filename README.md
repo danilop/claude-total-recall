@@ -194,7 +194,7 @@ To update to the latest version:
 
 ```bash
 # If installed from GitHub marketplace
-/plugin install claude-total-recall@claude-total-recall
+/plugin update claude-total-recall
 
 # If installed from local directory
 cd /path/to/claude-total-recall
