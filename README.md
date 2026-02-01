@@ -193,14 +193,14 @@ claude --plugin-dir /path/to/claude-total-recall
 To update to the latest version:
 
 ```bash
-# If installed from GitHub marketplace
-/plugin update claude-total-recall@claude-total-recall
+# Option 1: Use the CLI (outside Claude Code)
+claude plugin update claude-total-recall@claude-total-recall
 
-# Alternative: uninstall and reinstall
+# Option 2: Uninstall and reinstall (inside Claude Code)
 /plugin uninstall claude-total-recall@claude-total-recall
 /plugin install claude-total-recall@claude-total-recall
 
-# If installed from local directory
+# Option 3: If installed from local directory
 cd /path/to/claude-total-recall
 git pull
 uv sync
