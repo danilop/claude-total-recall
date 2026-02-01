@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "claude-total-recall": {
-      "command": "uv",
-      "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "claude-total-recall"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/danilop/claude-total-recall", "claude-total-recall"]
     }
   }
 }

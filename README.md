@@ -41,7 +41,7 @@ You always use `uv` for Python projects. You prefer `pnpm` over `npm`. You like 
 
 Then just ask naturally: *"How did we fix that bug last week?"*
 
-See [Installation](#installation) for prerequisites and alternatives.
+See [Installation](#installation) for alternatives.
 
 ---
 
@@ -148,7 +148,7 @@ Total Recall integrates with Claude Code through the **Model Context Protocol (M
 
 ```
 .mcp.json                           # Tells Claude Code how to start the server
-  → uv run claude-total-recall      # Launches FastMCP server
+  → uvx ... claude-total-recall     # Launches FastMCP server via uvx from GitHub
     → Exposes search_project_history, search_global_history tools
 ```
 
@@ -172,7 +172,6 @@ The **agent skill** (`skills/conversation-recall/SKILL.md`) teaches Claude *when
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/download)
-- Python 3.11+
 - [uv](https://docs.astral.sh/uv/) package manager
 
 ### Option 1: Install from GitHub (Recommended)
@@ -187,7 +186,7 @@ The **agent skill** (`skills/conversation-recall/SKILL.md`) teaches Claude *when
 
 **Restart Claude Code** after installation. MCP servers are only loaded at startup.
 
-**Persistent**: The plugin is copied to `~/.claude/plugins/` and loads automatically every session.
+The MCP server runs via `uvx` directly from GitHub, so dependencies are managed automatically.
 
 ### Option 2: Install from Local Directory
 
@@ -196,7 +195,6 @@ For development:
 ```bash
 git clone https://github.com/danilop/claude-total-recall.git
 cd claude-total-recall
-uv sync
 ```
 
 Then start Claude Code with the plugin:
@@ -209,21 +207,20 @@ claude --plugin-dir /path/to/claude-total-recall
 
 ### Updating
 
-To update to the latest version:
+The MCP server automatically uses the latest version from GitHub. To update the skill files:
 
 ```bash
-# Update the plugin files and install dependencies
 cd ~/.claude/plugins/marketplaces/claude-total-recall
 git pull
-uv sync
-
-# If installed from a local directory instead
-cd /path/to/claude-total-recall
-git pull
-uv sync
 ```
 
-**Restart Claude Code** after updating to reload the MCP server.
+To force refresh the MCP server cache:
+
+```bash
+uvx --refresh --from git+https://github.com/danilop/claude-total-recall claude-total-recall
+```
+
+**Restart Claude Code** after updating.
 
 ### Verify Installation
 
@@ -231,17 +228,6 @@ In Claude Code:
 
 - `/mcp` should list `claude-total-recall`
 - `/skills` should list `conversation-recall`
-
-### Troubleshooting
-
-If you see "Missing dependencies" errors, run:
-
-```bash
-cd ~/.claude/plugins/marketplaces/claude-total-recall
-uv sync
-```
-
-Then restart Claude Code. (This is automatic on macOS/Linux but may be needed on Windows.)
 
 ## Usage
 

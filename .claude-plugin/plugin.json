@@ -1,17 +1,5 @@
 {
   "name": "claude-total-recall",
   "description": "Search and recall Claude Code conversation history",
-  "version": "0.1.0",
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv sync --directory ${CLAUDE_PLUGIN_ROOT} --quiet"
-          }
-        ]
-      }
-    ]
-  }
+  "version": "0.1.0"
 }

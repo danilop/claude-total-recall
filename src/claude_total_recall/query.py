@@ -248,10 +248,7 @@ def _generate_hint(
         if total_matches == 1:
             return "Showing the only match. Try different search terms to find more."
         elif start == 1:
-            return (
-                f"Showing all {total_matches} matches. "
-                f"Try different search terms to find more."
-            )
+            return f"Showing all {total_matches} matches. Try different search terms to find more."
         else:
             return (
                 f"Showing {start}-{end} of {total_matches} matches (final page). "
