@@ -1,9 +1,6 @@
 {
   "claude-total-recall": {
-    "command": "sh",
-    "args": [
-      "-c",
-      "cd '${CLAUDE_PLUGIN_ROOT}' && uv sync --quiet 2>/dev/null; exec uv run claude-total-recall"
-    ]
+    "command": "uv",
+    "args": ["run", "--directory", "${CLAUDE_PLUGIN_ROOT}", "claude-total-recall"]
   }
 }
