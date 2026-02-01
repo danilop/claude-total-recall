@@ -2,15 +2,20 @@
 
 import contextlib
 import hashlib
+import logging
 import os
 import pickle
+import platform
+import subprocess
 from pathlib import Path
 
 import numpy as np
 from filelock import FileLock
 
-from .loader import get_projects_dir, load_all_messages
-from .models import IndexedMessage
+from .loader import get_projects_dir, list_all_sessions, load_messages_for_sessions
+from .models import IndexedMessage, SessionInfo
+
+logger = logging.getLogger(__name__)
 
 # Configuration
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
@@ -18,6 +23,111 @@ EMBEDDING_DIM = 384
 CACHE_DIR = Path.home() / ".cache" / "claude-total-recall"
 CACHE_FILE = CACHE_DIR / "embeddings.pkl"
 LOCK_FILE = CACHE_DIR / "embeddings.lock"
+
+# Memory limit configuration
+MEMORY_LIMIT_ENV = "TOTAL_RECALL_MEMORY_LIMIT_MB"
+MEMORY_LIMIT_DISABLED_ENV = "TOTAL_RECALL_NO_MEMORY_LIMIT"
+DEFAULT_MEMORY_FRACTION = 1 / 3
+BYTES_PER_MESSAGE = 2600  # ~1KB message + 1.5KB embedding + overhead
+
+
+def get_physical_memory() -> int:
+    """
+    Get physical memory in bytes using native Python.
+
+    Returns:
+        Physical memory in bytes, or 0 on failure (no limit applied).
+    """
+    system = platform.system()
+
+    if system == "Linux":
+        try:
+            with open("/proc/meminfo") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        # Format: "MemTotal:       16384000 kB"
+                        return int(line.split()[1]) * 1024
+        except (OSError, ValueError, IndexError):
+            pass
+
+    elif system == "Darwin":  # macOS
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+        except (subprocess.SubprocessError, ValueError):
+            pass
+
+    return 0  # Fallback: no limit
+
+
+def get_memory_limit() -> int:
+    """
+    Get memory limit in bytes for the in-memory index.
+
+    Checks environment variables for overrides, otherwise uses 1/3 of physical RAM.
+
+    Returns:
+        Memory limit in bytes, or 0 for no limit.
+    """
+    # Check if limit is disabled
+    if os.environ.get(MEMORY_LIMIT_DISABLED_ENV):
+        return 0
+
+    # Check for explicit override
+    override = os.environ.get(MEMORY_LIMIT_ENV)
+    if override:
+        try:
+            return int(override) * 1024 * 1024  # Convert MB to bytes
+        except ValueError:
+            logger.warning(f"Invalid {MEMORY_LIMIT_ENV} value: {override}, using default")
+
+    # Default: 1/3 of physical memory
+    physical = get_physical_memory()
+    return int(physical * DEFAULT_MEMORY_FRACTION) if physical else 0
+
+
+def select_sessions_within_limit(
+    sessions: list[SessionInfo], memory_limit_bytes: int
+) -> tuple[list[SessionInfo], list[SessionInfo]]:
+    """
+    Select newest sessions that fit within memory limit.
+
+    Args:
+        sessions: All available sessions.
+        memory_limit_bytes: Maximum memory to use (0 = no limit).
+
+    Returns:
+        Tuple of (selected_sessions, excluded_sessions).
+    """
+    if memory_limit_bytes <= 0:
+        return sessions, []
+
+    # Sort by modification time, newest first
+    sorted_sessions = sorted(
+        sessions,
+        key=lambda s: s.timestamp_fallback,
+        reverse=True,
+    )
+
+    selected: list[SessionInfo] = []
+    excluded: list[SessionInfo] = []
+    current_bytes = 0
+
+    for session in sorted_sessions:
+        estimated_mem = session.message_count * BYTES_PER_MESSAGE
+        if current_bytes + estimated_mem <= memory_limit_bytes:
+            selected.append(session)
+            current_bytes += estimated_mem
+        else:
+            excluded.append(session)
+
+    return selected, excluded
 
 
 def _get_sessions_fingerprint() -> str:
@@ -46,6 +156,7 @@ class ConversationIndex:
         self._embeddings: np.ndarray | None = None
         self._text_hashes: list[str] = []
         self._sessions_fingerprint: str = ""
+        self._excluded_session_count: int = 0
 
     @property
     def model(self):
@@ -111,9 +222,26 @@ class ConversationIndex:
         return current_fingerprint != self._sessions_fingerprint
 
     def build_index(self, include_subagents: bool = True):
-        """Build or update the search index."""
+        """Build or update the search index with memory limits."""
         self._sessions_fingerprint = _get_sessions_fingerprint()
-        self._messages = load_all_messages(include_subagents)
+
+        # Get all sessions and apply memory limit
+        all_sessions = list_all_sessions()
+        memory_limit = get_memory_limit()
+        selected_sessions, excluded_sessions = select_sessions_within_limit(
+            all_sessions, memory_limit
+        )
+        self._excluded_session_count = len(excluded_sessions)
+
+        if excluded_sessions:
+            logger.warning(
+                f"Memory limit ({memory_limit / 1024 / 1024:.0f} MB) reached: "
+                f"excluding {len(excluded_sessions)} oldest sessions from index. "
+                f"Set {MEMORY_LIMIT_DISABLED_ENV}=1 to disable limit."
+            )
+
+        # Load messages only for selected sessions
+        self._messages = load_messages_for_sessions(selected_sessions, include_subagents)
 
         if not self._messages:
             self._embeddings = np.array([])
@@ -248,6 +376,11 @@ class ConversationIndex:
     def message_count(self) -> int:
         """Get the number of indexed messages."""
         return len(self._messages)
+
+    @property
+    def excluded_session_count(self) -> int:
+        """Get the number of sessions excluded due to memory limits."""
+        return self._excluded_session_count
 
 
 # Global index instance

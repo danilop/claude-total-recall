@@ -53,7 +53,12 @@ def search_conversations(
     )
 
     if not raw_results:
-        return SearchResponse(results=[], query=query, total_matches=0)
+        return SearchResponse(
+            results=[],
+            query=query,
+            total_matches=0,
+            excluded_sessions=index.excluded_session_count,
+        )
 
     # Group by session and deduplicate overlapping windows
     deduplicated = _deduplicate_results(raw_results, context_before_after)
@@ -99,6 +104,7 @@ def search_conversations(
         total_matches=total_after_dedup,
         offset=offset,
         has_more=offset + len(results) < total_after_dedup,
+        excluded_sessions=index.excluded_session_count,
     )
 
 

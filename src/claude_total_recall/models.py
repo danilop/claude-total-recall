@@ -28,6 +28,11 @@ class SessionInfo(BaseModel):
     created: datetime | None = None
     modified: datetime | None = None
 
+    @property
+    def timestamp_fallback(self) -> datetime:
+        """Get a timestamp for sorting, with fallback to epoch."""
+        return self.modified or self.created or datetime.min
+
 
 class MatchedMessage(BaseModel):
     """A message that matched a search query."""
@@ -65,3 +70,4 @@ class SearchResponse(BaseModel):
     total_matches: int
     offset: int = 0
     has_more: bool = False
+    excluded_sessions: int = 0

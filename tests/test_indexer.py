@@ -1,17 +1,22 @@
 """Tests for conversation indexer."""
 
 import pickle
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from claude_total_recall.indexer import (
+    BYTES_PER_MESSAGE,
     ConversationIndex,
     _get_sessions_fingerprint,
     get_index,
+    get_memory_limit,
+    get_physical_memory,
+    select_sessions_within_limit,
 )
-from claude_total_recall.models import IndexedMessage
+from claude_total_recall.models import IndexedMessage, SessionInfo
 
 
 class TestGetSessionsFingerprint:
@@ -269,3 +274,189 @@ class TestGetIndex:
 
         index = get_index()
         assert isinstance(index, ConversationIndex)
+
+
+class TestGetPhysicalMemory:
+    """Tests for physical memory detection."""
+
+    def test_returns_positive_int_on_supported_platform(self):
+        """Test that physical memory detection works on supported platforms."""
+        memory = get_physical_memory()
+        # On macOS and Linux, this should return a positive value
+        # On unsupported platforms, it returns 0
+        assert isinstance(memory, int)
+        assert memory >= 0
+
+    def test_linux_meminfo_parsing(self, tmp_path):
+        """Test parsing /proc/meminfo on Linux."""
+        meminfo = tmp_path / "meminfo"
+        meminfo.write_text("MemTotal:       16384000 kB\nMemFree:        8192000 kB\n")
+
+        with (
+            patch("claude_total_recall.indexer.platform.system", return_value="Linux"),
+            patch("builtins.open", return_value=meminfo.open()),
+        ):
+            memory = get_physical_memory()
+            assert memory == 16384000 * 1024  # 16GB in bytes
+
+    def test_macos_sysctl(self):
+        """Test sysctl call on macOS."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "17179869184\n"  # 16GB in bytes
+
+        with (
+            patch("claude_total_recall.indexer.platform.system", return_value="Darwin"),
+            patch("claude_total_recall.indexer.subprocess.run", return_value=mock_result),
+        ):
+            memory = get_physical_memory()
+            assert memory == 17179869184
+
+    def test_unsupported_platform_returns_zero(self):
+        """Test unsupported platform returns 0."""
+        with patch("claude_total_recall.indexer.platform.system", return_value="Windows"):
+            memory = get_physical_memory()
+            assert memory == 0
+
+
+class TestGetMemoryLimit:
+    """Tests for memory limit configuration."""
+
+    def test_disabled_via_env(self):
+        """Test memory limit can be disabled via environment variable."""
+        with patch.dict("os.environ", {"TOTAL_RECALL_NO_MEMORY_LIMIT": "1"}):
+            limit = get_memory_limit()
+            assert limit == 0
+
+    def test_explicit_override_via_env(self):
+        """Test explicit memory limit override via environment variable."""
+        with patch.dict("os.environ", {"TOTAL_RECALL_MEMORY_LIMIT_MB": "512"}, clear=True):
+            limit = get_memory_limit()
+            assert limit == 512 * 1024 * 1024  # 512MB in bytes
+
+    def test_default_uses_fraction_of_physical(self):
+        """Test default limit is 1/3 of physical memory."""
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("claude_total_recall.indexer.get_physical_memory", return_value=12 * 1024**3),
+        ):
+            limit = get_memory_limit()
+            assert limit == 4 * 1024**3  # 1/3 of 12GB = 4GB
+
+    def test_no_limit_when_detection_fails(self):
+        """Test no limit applied when memory detection fails."""
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("claude_total_recall.indexer.get_physical_memory", return_value=0),
+        ):
+            limit = get_memory_limit()
+            assert limit == 0
+
+    def test_invalid_env_value_uses_default(self):
+        """Test invalid environment value falls back to default."""
+        with (
+            patch.dict("os.environ", {"TOTAL_RECALL_MEMORY_LIMIT_MB": "not_a_number"}),
+            patch("claude_total_recall.indexer.get_physical_memory", return_value=12 * 1024**3),
+        ):
+            limit = get_memory_limit()
+            assert limit == 4 * 1024**3  # Falls back to 1/3 of 12GB
+
+
+class TestSelectSessionsWithinLimit:
+    """Tests for session selection with memory limits."""
+
+    @pytest.fixture
+    def sample_sessions(self) -> list[SessionInfo]:
+        """Create sample sessions with different sizes and timestamps."""
+        base_time = datetime(2024, 1, 1, 12, 0)
+        return [
+            SessionInfo(
+                session_id="old",
+                project_path="/test",
+                message_count=100,
+                modified=base_time - timedelta(days=10),
+            ),
+            SessionInfo(
+                session_id="medium",
+                project_path="/test",
+                message_count=50,
+                modified=base_time - timedelta(days=5),
+            ),
+            SessionInfo(
+                session_id="new",
+                project_path="/test",
+                message_count=25,
+                modified=base_time,
+            ),
+        ]
+
+    def test_no_limit_includes_all(self, sample_sessions):
+        """Test no limit (0) includes all sessions."""
+        selected, excluded = select_sessions_within_limit(sample_sessions, 0)
+        assert len(selected) == 3
+        assert len(excluded) == 0
+
+    def test_selects_newest_first(self, sample_sessions):
+        """Test newest sessions are selected first."""
+        # Limit to fit only the newest session
+        limit = 25 * BYTES_PER_MESSAGE + 1
+        selected, excluded = select_sessions_within_limit(sample_sessions, limit)
+
+        assert len(selected) == 1
+        assert selected[0].session_id == "new"
+        assert len(excluded) == 2
+
+    def test_excludes_oldest_when_limited(self, sample_sessions):
+        """Test oldest sessions are excluded when limit is reached."""
+        # Limit to fit newest + medium, but not oldest
+        limit = (25 + 50) * BYTES_PER_MESSAGE + 1
+        selected, excluded = select_sessions_within_limit(sample_sessions, limit)
+
+        assert len(selected) == 2
+        assert {s.session_id for s in selected} == {"new", "medium"}
+        assert len(excluded) == 1
+        assert excluded[0].session_id == "old"
+
+    def test_all_sessions_fit(self, sample_sessions):
+        """Test all sessions included when limit is large enough."""
+        limit = (100 + 50 + 25) * BYTES_PER_MESSAGE + 1000
+        selected, excluded = select_sessions_within_limit(sample_sessions, limit)
+
+        assert len(selected) == 3
+        assert len(excluded) == 0
+
+    def test_handles_sessions_without_modified(self):
+        """Test sessions without modified timestamp use created or fallback."""
+        sessions = [
+            SessionInfo(
+                session_id="no_dates",
+                project_path="/test",
+                message_count=10,
+            ),
+            SessionInfo(
+                session_id="has_created",
+                project_path="/test",
+                message_count=10,
+                created=datetime(2024, 1, 1),
+            ),
+        ]
+        # Should not raise, uses timestamp_fallback
+        selected, excluded = select_sessions_within_limit(sessions, 10 * BYTES_PER_MESSAGE + 1)
+        assert len(selected) == 1
+        # The one with created date should be selected as "newer"
+        assert selected[0].session_id == "has_created"
+
+
+class TestConversationIndexMemoryManagement:
+    """Tests for ConversationIndex memory management."""
+
+    def test_excluded_session_count_initially_zero(self):
+        """Test excluded_session_count starts at 0."""
+        index = ConversationIndex()
+        assert index.excluded_session_count == 0
+
+    def test_excluded_session_count_property(self):
+        """Test excluded_session_count property returns correct value."""
+        index = ConversationIndex()
+        index._excluded_session_count = 5
+        assert index.excluded_session_count == 5

@@ -214,6 +214,30 @@ def load_all_messages(include_subagents: bool = True) -> list[IndexedMessage]:
     return all_messages
 
 
+def load_messages_for_sessions(
+    sessions: list[SessionInfo], include_subagents: bool = True
+) -> list[IndexedMessage]:
+    """
+    Load messages only for specified sessions.
+
+    Args:
+        sessions: List of sessions to load messages from.
+        include_subagents: Whether to include subagent conversations.
+
+    Returns:
+        List of all messages from the specified sessions.
+    """
+    all_messages = []
+
+    for session in sessions:
+        messages = load_session_messages(
+            session.project_path, session.session_id, include_subagents
+        )
+        all_messages.extend(messages)
+
+    return all_messages
+
+
 def list_all_sessions() -> list[SessionInfo]:
     """List all sessions across all projects."""
     all_sessions = []

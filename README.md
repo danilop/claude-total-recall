@@ -259,7 +259,8 @@ Claude: [searches for "auth approach implementation" to recover details]
   "query": "authentication bug fix",
   "total_matches": 25,
   "offset": 0,
-  "has_more": true
+  "has_more": true,
+  "excluded_sessions": 0
 }
 ```
 
@@ -271,6 +272,29 @@ search_project_history(query="auth bug", max_results=10, offset=0)
 
 # Next page
 search_project_history(query="auth bug", max_results=10, offset=10)
+```
+
+## Memory Management
+
+Total Recall limits in-memory index size to prevent excessive memory usage. By default, it uses 1/3 of physical RAM. When the limit is reached, the oldest sessions are excluded from the index (newest sessions are kept). All conversation files on disk are preserved.
+
+When sessions are excluded, the `excluded_sessions` field in search responses indicates how many sessions were not indexed. A warning is also logged.
+
+### Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TOTAL_RECALL_MEMORY_LIMIT_MB` | Override memory limit in MB | 1/3 of RAM |
+| `TOTAL_RECALL_NO_MEMORY_LIMIT` | Set to any value to disable limit | - |
+
+Examples:
+
+```bash
+# Limit to 256 MB
+export TOTAL_RECALL_MEMORY_LIMIT_MB=256
+
+# Disable limit (index all sessions)
+export TOTAL_RECALL_NO_MEMORY_LIMIT=1
 ```
 
 ## Testing
